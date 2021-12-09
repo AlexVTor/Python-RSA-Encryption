@@ -31,10 +31,10 @@ while True:
 
 
 
-    if ('put file' in command):
+    if ('1' in command):
         text = ''
         data, addr = serversocket.recvfrom(1024)
-        message = data.decode()
+        message = data.decode() 
 
         #Keep looking for 'ready' message to start transferring data
         #Next thing to be sent by client is the file name
@@ -46,7 +46,7 @@ while True:
         filename = message
         print('Downloading File {0} from client'.format(filename))
         #statement will return true if the file is a png
-        isPNG = ('png' in filename or 'html' in filename)
+        isPNG = ('png' in filename or 'html' in filename or 'jpg' in filename)
         #isPNG = ('png' in filename )
 
         # Let client know it is ready to recieve data
@@ -64,13 +64,13 @@ while True:
                     break
 
                 else:
-                    if(isPNG):
+                    if(True):
                         c = base64.b64decode(data.decode())
                         char = c
-
-                    else:
-                        char = chr(int(data.decode())).encode()
-                        text += char.decode()
+                    #FIXME is this needed?
+                    #else:
+                    #    char = chr(int(data.decode())).encode()
+                    #    text += char.decode()
                     f.write(char)
             print('Download Complete')
             print('Received Hash: ', received_hash)
@@ -80,9 +80,9 @@ while True:
             sha_hash = hashlib.sha256()
             for byte_block in iter(lambda: file.read(4096),b""):
                 sha_hash.update(byte_block)
-        print('Generated Hash: ', sha_hash.hexdigest())
+        print('Generated Hash: ', sha_hash.hexdigest(),'\n\n')
 
-    elif('get file' in command):
+    elif('2' in command):
         text = ''
         data, addr = serversocket.recvfrom(1024)
 
@@ -125,7 +125,7 @@ while True:
 
 
 ############################ENCRYPTED FUNCTIONS##########################
-    elif ('put' in command):
+    elif ('3' in command):
         text = ''
         data, addr = serversocket.recvfrom(1024)
         message = data.decode()
@@ -140,7 +140,7 @@ while True:
         filename = message
         print('Downloading File {0} from client'.format(filename))
         #statement will return true if the file is a png
-        isPNG = ('png' in filename or 'html' in filename)
+        isPNG = True
 
         # Let client know it is ready to recieve data
         serversocket.sendto('ready'.encode(),addr)
@@ -179,12 +179,12 @@ while True:
                 sha_hash.update(byte_block)
         print('Generated Hash: ', sha_hash.hexdigest())
 
-    elif('get' in command):
+    elif('4' in command):
         text = ''
         data, addr = serversocket.recvfrom(1024)
 
         filename = data.decode()
-        isPNG = ('png' in filename or 'html' in filename)
+        isPNG = True
         print('Uploading File {0} to client'.format(filename))
 
         #Wait for ready message from server to start sending info

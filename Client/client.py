@@ -47,129 +47,101 @@ def getKeys():
     client_data = [d, n, e]
     return(client_data)
 
-while(True):
+def regularUpload():
 
-    #send server the operating mode
-    print('Command Line')
-    command = input('->')
-    command.lower()
-    s.sendto(command.encode(), serverAddr)
+    #Prompt user for file name, sending to server after ensuring it exists
+    filename = input('Enter filename with extension to send to server\n')
+    while not os.path.isfile(filename):
+        filename = input("No such file! Please enter the name of a file you'd like to send")
+    
+    # Update server with file name, wait for ready message from server to start sending info
+    s.sendto(filename.encode(), serverAddr)
+    msg, addr = s.recvfrom(1024)
+    print('Uploading File {0} to server'.format(filename))
 
-    # If true, run in uploading mode
-    if ('put file' in command):
+    #FIXME is this needed?
+    # statement will return true if the file is a png
+    #isPNG = ('png' in filename or 'html' in filename or 'jpg' in filename)
 
-        # Get file name from user
-        filename = input('Enter filename with extension to send to server')
-        while not os.path.isfile(filename):
-            filename = input("No such file! Please enter the name of a file you'd like to send")
-            arr = os.listdir('.')
-            print('Current Path:')
-            print(pathlib.Path(__file__).parent.resolve)
-        
-        s.sendto(filename.encode(), serverAddr)
+    # Generate hash value for file. This will later be used by server to check for correctness
+    with open(filename, 'rb') as file:
+        sha_hash = hashlib.sha256()
+        for byte_block in iter(lambda: file.read(4096), b""):
+            sha_hash.update(byte_block)
 
-        # statement will return true if the file is a png
-        isPNG = ('png' in filename or 'html' in filename)
+    # Start sending file to server byte-wise
+    with open(filename, 'rb') as f:
+        j = f.read(1)
 
-        print('Uploading File {0} to server'.format(filename))
+        if (True):
+            while j:
+                encoded = base64.b64encode(j)
+                s.sendto(encoded, serverAddr)
+                j = f.read(100)
+        #FIXME is this needed?
+        #else:
+        #    while j:
+        #        print(j)
+        #        s.sendto(str(ord(j.decode())).encode(), serverAddr)
+        #        j = f.read(1)
+        print('Upload Complete')
+        s.sendto('quit'.encode(), serverAddr)
+        s.sendto((sha_hash.hexdigest()).encode(), serverAddr)
 
-        # Wait for ready message from server to start sending info
-        msg, addr = s.recvfrom(1024)
+def regularDownload():
+
+    #Prompt user for file name, sending to server after ensuring it exists
+    filename = input('Enter filename with extension to send to server')
+    s.sendto(filename.encode(), serverAddr)
+    print('Downloading file {0} from server'.format(filename))
 
 
-        # generate hash value
-        with open(filename, 'rb') as file:
-            sha_hash = hashlib.sha256()
-            for byte_block in iter(lambda: file.read(4096), b""):
-                sha_hash.update(byte_block)
+    #FIXME is this needed?
+    #isPNG = ('png' in filename or 'html' in filename)
 
-        # send bytes to server
-        with open(filename, 'rb') as f:
-            j = f.read(1)
+    # Signal server to start sending file bytewise
+    s.sendto('ready'.encode(), serverAddr)
+    with open(filename, 'wb') as f:
 
-            if (isPNG):
-                while j:
-                    encoded = base64.b64encode(j)
-                    s.sendto(encoded, serverAddr)
-                    j = f.read(100)
-            else:
-                while j:
-                    print(j)
-                    s.sendto(str(ord(j.decode())).encode(), serverAddr)
-                    j = f.read(1)
+        while (True):
+            data, addr = s.recvfrom(1024)
 
-            s.sendto('quit'.encode(), serverAddr)
-            print('Upload Complete')
-            s.sendto((sha_hash.hexdigest()).encode(), serverAddr)
-
-    elif ('get file' in command):
-        print('Downloading File')
-
-        # Get file name from user
-        filename = input('Enter filename with extension to send to server')
-        s.sendto(filename.encode(), serverAddr)
-
-        isPNG = ('png' in filename or 'html' in filename)
-        print('Downloading file {0} from server'.format(filename))
-
-        # Let server know it is receive to send data
-        s.sendto('ready'.encode(), serverAddr)
-        with open(filename, 'wb') as f:
-
-            while (True):
+            if (data.decode() == 'quit'):
+                print('received quit: ')
                 data, addr = s.recvfrom(1024)
+                received_hash = data.decode()
+                break
+            else:
+                if (True):
+                    c = base64.b64decode(data)
+                    char = c
+                #FIXME is this needed?
+                #else:
+                #    char = chr(int(data.decode())).encode()
 
-                if (data.decode() == 'quit'):
-                    print('received quit: ')
-                    data, addr = s.recvfrom(1024)
-                    received_hash = data.decode()
-                    break
-                else:
-                    if (isPNG):
-                        c = base64.b64decode(data)
-                        char = c
-                    else:
-                        char = chr(int(data.decode())).encode()
+                f.write(char)
+                s.sendto(''.encode(), serverAddr)
 
-                    f.write(char)
-                    s.sendto(''.encode(), serverAddr)
+        print('Download Complete')
 
-            print('Download Complete')
+    # Open created file to generate hash value
+    with open(filename, 'rb') as file:
+        sha_hash = hashlib.sha256()
+        for byte_block in iter(lambda: file.read(4096), b""):
+            sha_hash.update(byte_block)
 
-        # Open created file to generate hash value
-        with open(filename, 'rb') as file:
-            sha_hash = hashlib.sha256()
-            for byte_block in iter(lambda: file.read(4096), b""):
-                sha_hash.update(byte_block)
+    # Print received/generated hash values
+    print('Received Hash: ', received_hash)
+    print('Generated Hash: ', sha_hash.hexdigest())
 
-        # Print received/generated hash values
-        print('Received Hash: ', received_hash)
-        print('Generated Hash: ', sha_hash.hexdigest())
-
-
-
-
-
-
-
-
-
-
-
-
-
-    ############################ENCRYPTED FUNCTIONS##########################
-
-    #If true, run in uploading mode
-    elif('put' in command):
-
-        #Get file name from user
+def encryptedUpload():
+     #Get file name from user
         filename = input('Enter filename with extension to send to server')
-
         s.sendto(filename.encode(), serverAddr)
 
+        #FIXME do I need this?
         #statement will return true if the file is a png
-        isPNG = ('png' in filename or 'html' in filename)
+        isPNG = True
         print('Uploading File {0} to server'.format(filename))
 
         #Wait for ready message from server to start sending info
@@ -186,81 +158,103 @@ while(True):
         with open(filename, 'rb') as f:
             j = f.read(100)
 
-            if(isPNG):
+            if(True):
                 while j:
                     x = base64.b64encode(j)
                     encryptedJ = rsa.encrypt(x.decode(), server_e, server_n)
                     s.sendto(encryptedJ.encode(), serverAddr)
                     msg, addr = s.recvfrom(1024)
                     j = f.read(100)
-            else:
-                while j:
-                    encryptedJ = rsa.encrypt(str(j.decode()),server_e,server_n)
-                    s.sendto(encryptedJ.encode(), serverAddr)
-                    msg, addr = s.recvfrom(1024)
-                    j = f.read(100)
+            #FIXME do I need this alternate encoding?
+            #else:
+            #    while j:
+            #        encryptedJ = rsa.encrypt(str(j.decode()),server_e,server_n)
+            #        s.sendto(encryptedJ.encode(), serverAddr)
+            #        msg, addr = s.recvfrom(1024)
+            #        j = f.read(100)
 
             s.sendto('quit'.encode(),serverAddr)
             print('Upload Complete')
             s.sendto((sha_hash.hexdigest()).encode(), serverAddr)
 
-
-
-    elif ('get' in command):
-        text = ''
-        keys = getKeys()
-        client_d = keys[0]
-        client_n = keys[1]
-        client_e = keys[2]
+def encryptedDownload():
+    text = ''
+    keys = getKeys()
+    client_d = keys[0]
+    client_n = keys[1]
+    client_e = keys[2]
 
 
 
-        #Get file name from user
-        filename = input('Enter filename with extension to send to server')
-        s.sendto(filename.encode(), serverAddr)
+    #Get file name from user
+    filename = input('Enter filename with extension to send to server')
+    s.sendto(filename.encode(), serverAddr)
 
 
-        isPNG = ('png' in filename or 'html' in filename)
-        print('Downloading file {0} from server'.format(filename))
+    isPNG = True
+    print('Downloading file {0} from server'.format(filename))
 
-        # Let server know it is receive to send data
-        s.sendto('ready'.encode(),serverAddr)
-        s.sendto(str(client_e).encode(),serverAddr)
-        s.sendto(str(client_n).encode(),serverAddr)
-        with open(filename, 'wb') as f:
+    # Let server know it is receive to send data
+    s.sendto('ready'.encode(),serverAddr)
+    s.sendto(str(client_e).encode(),serverAddr)
+    s.sendto(str(client_n).encode(),serverAddr)
+    with open(filename, 'wb') as f:
 
-            while(True):
+        while(True):
+            data, addr = s.recvfrom(1024)
+
+            if(data.decode() == 'quit'):
+                print('received quit: ')
                 data, addr = s.recvfrom(1024)
+                received_hash = data.decode()
+                break
+            else:
+                if(isPNG):
+                    x = rsa.encrypt(data.decode(), client_d, client_n)
+                    y = x.encode()
+                    y = base64.b64decode(y)
+                    char = y
+                    s.sendto(''.encode(), serverAddr)
 
-                if(data.decode() == 'quit'):
-                    print('received quit: ')
-                    data, addr = s.recvfrom(1024)
-                    received_hash = data.decode()
-                    break
-                else:
-                    if(isPNG):
-                        x = rsa.encrypt(data.decode(), client_d, client_n)
-                        y = x.encode()
-                        y = base64.b64decode(y)
-                        char = y
-                        s.sendto(''.encode(), serverAddr)
+                #FIXME Do I need this alternate encoding?
+                #else:
+                #
+                #    char = rsa.encrypt(data.decode(), client_d, client_n)
+                #    char = char.encode()
+                f.write(char)
+        print('Download Complete')
 
-                    else:
+    # Open created file to generate hash value
+    with open(filename, 'rb') as file:
+        sha_hash = hashlib.sha256()
+        for byte_block in iter(lambda: file.read(4096),b""):
+            sha_hash.update(byte_block)
 
-                        char = rsa.encrypt(data.decode(), client_d, client_n)
-                        char = char.encode()
-                    f.write(char)
-            print('Download Complete')
+    # Print received/generated hash values
+    print('Received Hash: ', received_hash)
+    print('Generated Hash: ', sha_hash.hexdigest())
 
-        # Open created file to generate hash value
-        with open(filename, 'rb') as file:
-            sha_hash = hashlib.sha256()
-            for byte_block in iter(lambda: file.read(4096),b""):
-                sha_hash.update(byte_block)
 
-        # Print received/generated hash values
-        print('Received Hash: ', received_hash)
-        print('Generated Hash: ', sha_hash.hexdigest())
+while(True):
+
+    #send server the operating mode
+    print('Select operating mode\n1. Upload\n2. Download\n3. RSA Encrypted Upload\n4. RSA Encrypted Download')
+
+    command = input('->')
+    s.sendto(command.encode(), serverAddr)
+
+    # If true, run in uploading mode
+    if ('1' in command):
+        regularUpload()
+
+    elif ('2' in command):
+        regularDownload()
+
+    elif('3' in command):
+        encryptedUpload()
+       
+    elif ('4' in command):
+        encryptedDownload()
 
 
 
